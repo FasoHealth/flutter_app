@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class IncidentModel {
   final String id;
   final String title;
@@ -10,7 +12,10 @@ class IncidentModel {
   final String reportedBy;
   final bool isAnonymous;
   final int upvoteCount;
+  final List<String> upvotes;
   final DateTime createdAt;
+  final String? reporterName;
+  final String? reporterAvatar;
 
   IncidentModel({
     required this.id,
@@ -24,7 +29,10 @@ class IncidentModel {
     required this.reportedBy,
     required this.isAnonymous,
     required this.upvoteCount,
+    required this.upvotes,
     required this.createdAt,
+    this.reporterName,
+    this.reporterAvatar,
   });
 
   factory IncidentModel.fromJson(Map<String, dynamic> json, {String? baseUrl}) {
@@ -35,10 +43,54 @@ class IncidentModel {
     if (json['images'] != null && json['images'] is List) {
       imageUrls = (json['images'] as List)
           .map((img) {
-          final path = img is Map ? (img['path'] ?? img).toString() : img.toString();
-          return "$host/${path.replaceFirst(RegExp(r'^/'), '')}";
-        })
+            String path = "";
+            if (img is Map) {
+              path = (img['url'] ?? img['secure_url'] ?? img['path'] ?? '').toString();
+            } else {
+              path = img.toString();
+            }
+
+            if (path.isEmpty) return "";
+            
+            if (path.startsWith('http://') || path.startsWith('https://')) {
+              // Force HTTPS pour éviter les problèmes de "Cleartext traffic" sur Android
+              return path.replaceFirst('http://', 'https://');
+            }
+            // Nettoyage du slash initial pour éviter les doubles slashes
+            final cleanPath = path.replaceFirst(RegExp(r'^/'), '');
+            return "$host/$cleanPath".replaceFirst('http://', 'https://');
+          })
+          .where((url) => url.isNotEmpty)
           .toList();
+    }
+
+    String? repName;
+    String? repAvatar;
+    String repBy = '';
+
+    if (json['reportedBy'] != null) {
+      if (json['reportedBy'] is Map) {
+        repBy = json['reportedBy']['_id'] ?? '';
+        repName = json['reportedBy']['name'];
+        final avatarData = json['reportedBy']['avatar'];
+        if (avatarData != null) {
+          String avatarPath = "";
+          if (avatarData is Map) {
+            avatarPath = (avatarData['url'] ?? avatarData['secure_url'] ?? avatarData['path'] ?? '').toString();
+          } else {
+            avatarPath = avatarData.toString();
+          }
+          if (avatarPath.isNotEmpty) {
+            if (avatarPath.startsWith('http')) {
+              repAvatar = avatarPath.replaceFirst('http://', 'https://');
+            } else {
+              repAvatar = "$host/${avatarPath.replaceFirst(RegExp(r'^/'), '')}".replaceFirst('http://', 'https://');
+            }
+          }
+        }
+      } else {
+        repBy = json['reportedBy'].toString();
+      }
     }
 
     return IncidentModel(
@@ -50,11 +102,12 @@ class IncidentModel {
       status: json['status'] ?? 'pending',
       location: json['location'] ?? {},
       images: imageUrls,
-      reportedBy: (json['reportedBy'] is Map) 
-          ? json['reportedBy']['_id'] ?? '' 
-          : json['reportedBy'] ?? '',
+      reportedBy: repBy,
+      reporterName: repName,
+      reporterAvatar: repAvatar,
       isAnonymous: json['isAnonymous'] ?? false,
       upvoteCount: json['upvoteCount'] ?? 0,
+      upvotes: (json['upvotes'] as List?)?.map((v) => v is Map ? (v['_id'] ?? '').toString() : v.toString()).toList() ?? [],
       createdAt: json['createdAt'] != null 
           ? DateTime.parse(json['createdAt']) 
           : DateTime.now(),

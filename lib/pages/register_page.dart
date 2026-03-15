@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../layout/main_shell.dart';
+import 'login_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -12,174 +15,313 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLoading = false;
+  final _confirmPasswordController = TextEditingController();
+  
+  String _role = 'citizen';
+  bool _loading = false;
+  String? _error;
 
-  void _handleRegister() async {
-    if (_nameController.text.isEmpty || _emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez remplir tous les champs')),
-      );
+  Future<void> _handleRegister() async {
+    setState(() => _error = null);
+
+    if (_passwordController.text.length < 8 || !RegExp(r'\d').hasMatch(_passwordController.text)) {
+      setState(() => _error = 'Le mot de passe doit contenir au moins 8 caractères et au moins un chiffre.');
       return;
     }
 
-    setState(() => _isLoading = true);
+    if (_passwordController.text != _confirmPasswordController.text) {
+      setState(() => _error = 'Les mots de passe ne correspondent pas.');
+      return;
+    }
 
-    final result = await ApiService.register({
-      'name': _nameController.text.trim(),
-      'email': _emailController.text.trim(),
-      'password': _passwordController.text.trim(),
-    });
+    setState(() => _loading = true);
 
-    if (mounted) setState(() => _isLoading = false);
+    try {
+      final result = await ApiService.register({
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'password': _passwordController.text,
+        'phone': _phoneController.text.trim(),
+        'role': _role,
+      });
 
-    if (result['success']) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Compte créé avec succès ! Connectez-vous.'),
-            backgroundColor: AppTheme.successGreen,
-          ),
-        );
-        Navigator.pop(context);
+      if (result['success']) {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const MainShell(isDarkMode: false)),
+          );
+        }
+      } else {
+        setState(() => _error = result['message'] ?? "Erreur lors de l'inscription.");
       }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']),
-            backgroundColor: AppTheme.dangerRed,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+    } catch (e) {
+      setState(() => _error = "Erreur lors de l'inscription. Veuillez réessayer.");
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final isDesktop = size.width > 900;
+
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text('INSCRIPTION'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: Stack(
+      backgroundColor: Colors.white,
+      body: Row(
         children: [
-          // Background
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topRight,
-                end: Alignment.bottomLeft,
-                colors: [AppTheme.bgDark, Color(0xFF1A1D27)],
+          if (isDesktop)
+            Expanded(
+              flex: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.bgPrimary,
+                  gradient: RadialGradient(
+                    center: const Alignment(0.4, -0.4),
+                    radius: 0.6,
+                    colors: [
+                      AppTheme.brandOrange.withOpacity(0.18),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(40.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)
+                              ],
+                            ),
+                            child: const Icon(Icons.flash_on_rounded, color: AppTheme.brandOrange, size: 24),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Flash Alerte',
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: const Color(0xFF222222), fontSize: 20),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                  ],
+                ),
               ),
             ),
-          ),
-          
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Rejoignez la\nCommunauté',
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      height: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Créez votre compte pour signaler et suivre les incidents en temps réel.',
-                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 15),
-                  ),
-                  
-                  const SizedBox(height: 48),
-                  
-                  TextField(
-                    controller: _nameController,
-                    style: const TextStyle(color: AppTheme.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Nom Complet',
-                      prefixIcon: Icon(Icons.person_rounded),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: _emailController,
-                    style: const TextStyle(color: AppTheme.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'E-mail Professionnel',
-                      prefixIcon: Icon(Icons.alternate_email_rounded),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: _passwordController,
-                    style: const TextStyle(color: AppTheme.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Mot de passe',
-                      prefixIcon: Icon(Icons.lock_person_rounded),
-                    ),
-                    obscureText: true,
-                  ),
-                  
-                  const SizedBox(height: 48),
-                  
-                  SizedBox(
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _handleRegister,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.accentPurple,
-                        shadowColor: AppTheme.accentPurple.withOpacity(0.5),
-                        elevation: 8,
+          Expanded(
+            flex: 1,
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(40.0),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Créer un compte',
+                        style: GoogleFonts.inter(fontSize: 32, fontWeight: FontWeight.w700, color: const Color(0xFF222222), letterSpacing: -1),
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                            )
-                          : const Text('CRÉER MON COMPTE', style: TextStyle(letterSpacing: 1.2)),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  Center(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: RichText(
-                        text: const TextSpan(
-                          text: "Déjà membre ? ",
-                          style: TextStyle(color: AppTheme.textSecondary),
-                          children: [
-                            TextSpan(
-                              text: 'Connectez-vous',
-                              style: TextStyle(
-                                color: AppTheme.accentPurple,
-                                fontWeight: FontWeight.bold,
+                      const SizedBox(height: 8),
+                      Text(
+                        'Rejoignez des milliers de citoyens qui protègent leur quartier.',
+                        style: GoogleFonts.inter(fontSize: 16, color: const Color(0xFF666666)),
+                      ),
+                      const SizedBox(height: 32),
+                      if (_error != null)
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          margin: const EdgeInsets.only(bottom: 24),
+                          decoration: BoxDecoration(color: const Color(0xFFFFF1F0), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFFFA39E))),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline_rounded, color: Color(0xFFF5222D), size: 18),
+                              const SizedBox(width: 10),
+                              Expanded(child: Text(_error!, style: GoogleFonts.inter(color: const Color(0xFFF5222D), fontSize: 14))),
+                            ],
+                          ),
+                        ),
+                      Row(
+                        children: [
+                          Expanded(child: _buildLabel('Nom complet')),
+                          const SizedBox(width: 20),
+                          Expanded(child: _buildLabel('Téléphone (optionnel)')),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _nameController,
+                              decoration: const InputDecoration(prefixIcon: Icon(Icons.person_outline_rounded, size: 20), hintText: 'Jean Dupont'),
+                            ),
+                          ),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: TextField(
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                              decoration: const InputDecoration(prefixIcon: Icon(Icons.phone_outlined, size: 20), hintText: '07 00 00 00 00'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      _buildLabel('Adresse e-mail'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(prefixIcon: Icon(Icons.mail_outline_rounded, size: 20), hintText: 'votre@email.com'),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(child: _buildLabel('Mot de passe')),
+                          const SizedBox(width: 20),
+                          Expanded(child: _buildLabel('Confirmer')),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextField(
+                                  controller: _passwordController,
+                                  obscureText: true,
+                                  decoration: const InputDecoration(prefixIcon: Icon(Icons.lock_outline_rounded, size: 20), hintText: '••••••••'),
+                                ),
+                                const SizedBox(height: 4),
+                                Text('8 caractères min., dont 1 chiffre.', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF666666))),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: TextField(
+                              controller: _confirmPasswordController,
+                              obscureText: true,
+                              decoration: const InputDecoration(prefixIcon: Icon(Icons.lock_outline_rounded, size: 20), hintText: '••••••••'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      _buildLabel('Vous êtes'),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => _role = 'citizen'),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _role == 'citizen' ? AppTheme.brandOrangePale : AppTheme.bgPrimary,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: _role == 'citizen' ? AppTheme.brandOrange : AppTheme.border, width: 2),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.person_outline_rounded, size: 18, color: _role == 'citizen' ? AppTheme.brandOrange : const Color(0xFF222222)),
+                                    const SizedBox(width: 10),
+                                    Text('Citoyen', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: _role == 'citizen' ? AppTheme.brandOrange : const Color(0xFF222222))),
+                                  ],
+                                ),
                               ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _loading ? null : _handleRegister,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.brandOrange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                          child: _loading
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text('Créer mon compte', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 16)),
+                                    const SizedBox(width: 8),
+                                    const Icon(Icons.arrow_forward_rounded, size: 20),
+                                  ],
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text('Déjà inscrit ? ', style: GoogleFonts.inter(color: const Color(0xFF666666), fontSize: 14)),
+                            GestureDetector(
+                              onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginPage())),
+                              child: Text('Se connecter', style: GoogleFonts.inter(color: AppTheme.brandOrange, fontWeight: FontWeight.w700, fontSize: 14)),
                             ),
                           ],
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
         ],
       ),
+      bottomNavigationBar: isDesktop
+          ? Container(
+              height: 60,
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Color(0xFFE8E3DB)))),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _footerLink('Aide'),
+                  _footerLink('Confidentialité'),
+                  _footerLink('Conditions'),
+                ],
+              ),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Text(text, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF222222)));
+  }
+
+  Widget _footerLink(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Text(text, style: GoogleFonts.inter(color: const Color(0xFF999999), fontSize: 12)),
     );
   }
 }

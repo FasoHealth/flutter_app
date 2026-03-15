@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform, kDebugMode;
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,28 +10,25 @@ import 'package:http_parser/http_parser.dart';
 
 class ApiService {
   // --- CONFIGURATION RÉSEAU ---
+  // Mettre 'true' pour utiliser le backend local, 'false' pour la production Render
+  static const bool _useLocalBackend = false;
+  
   // Remplacer par l'IP de votre PC (ex: 192.168.1.15) pour tester sur téléphone physique
   static const String _manualServerIp = "192.168.1.45"; 
 
   static String get baseUrl {
-    if (kIsWeb) return "http://localhost:5000/api";
-    
-    // Sur desktop, on utilise toujours localhost
-    try {
-      if (defaultTargetPlatform == TargetPlatform.windows || 
-          defaultTargetPlatform == TargetPlatform.macOS || 
-          defaultTargetPlatform == TargetPlatform.linux) {
+    if (_useLocalBackend) {
+      if (kIsWeb) {
         return "http://localhost:5000/api";
       }
-    } catch (_) {}
-
-    // Pour le téléphone physique (si IP renseignée)
-    if (_manualServerIp.isNotEmpty) {
-      return "http://$_manualServerIp:5000/api";
+      // Pour les tests sur appareil physique via wifi ou émulateur Android
+      // Si vous testez sur un téléphone réel, utilisez _manualServerIp
+      // return "http://$_manualServerIp:5000/api";
+      return "http://10.0.2.2:5000/api";
+    } else {
+      // URL de production sur Render
+      return "https://cominity-system-management.onrender.com/api";
     }
-
-    // Par défaut pour l'émulateur Android
-    return "http://10.0.2.2:5000/api";
   }
 
   // --- PERSISTENCE ---
@@ -50,12 +47,26 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user_id', user.id);
     await prefs.setString('user_name', user.name);
+    await prefs.setString('user_email', user.email);
     await prefs.setString('user_role', user.role);
+  }
+
+  static Future<String?> getUserEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('user_email');
   }
 
   static Future<String?> getUserId() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('user_id');
+  }
+
+  static Future<Map<String, String>> getHeaders() async {
+    final token = await getToken();
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
   }
 
   static Future<String> getUserName() async {
@@ -65,10 +76,7 @@ class ApiService {
 
   static Future<String> getUserRole() async {
     final prefs = await SharedPreferences.getInstance();
-    final role = (prefs.getString('user_role') ?? 'citizen').toLowerCase();
-    if (role == 'admin') return 'ADMINISTRATEUR';
-    if (role == 'citizen') return 'CITOYEN';
-    return role.toUpperCase();
+    return (prefs.getString('user_role') ?? 'citizen').toLowerCase();
   }
 
   static Future<void> logout() async {
@@ -76,7 +84,68 @@ class ApiService {
     await prefs.remove('jwt_token');
     await prefs.remove('user_id');
     await prefs.remove('user_name');
+    await prefs.remove('user_email');
     await prefs.remove('user_role');
+  }
+
+  static Future<UserModel?> getUserProfile() async {
+    try {
+      final token = await getToken();
+      if (token == null) return null;
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/profile'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        return UserModel.fromJson(data['user'] ?? data, baseUrl: baseUrl);
+      }
+      return null;
+    } catch (e) {
+      if (kDebugMode) print('Error getting profile: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> updateProfile(Map<String, dynamic> data) async {
+    try {
+      final token = await getToken();
+      if (token == null) return false;
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/users/profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(data),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      if (kDebugMode) print('Error updating profile: $e');
+      return false;
+    }
+  }
+
+  static Future<UserModel?> getUserById(String id) async {
+    try {
+      final token = await getToken();
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/$id'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return UserModel.fromJson(data['user'] ?? data, baseUrl: baseUrl);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
   }
 
   // --- AUTHENTICATION ---
@@ -95,7 +164,7 @@ class ApiService {
       final data = jsonDecode(response.body);
       if (response.statusCode == 200) {
         await saveToken(data['token']);
-        final user = UserModel.fromJson(data['user']);
+        final user = UserModel.fromJson(data['user'], baseUrl: baseUrl);
         await saveUserInfo(user);
         return {
           'success': true, 
@@ -120,7 +189,7 @@ class ApiService {
 
       final data = jsonDecode(response.body);
       if (response.statusCode == 201) {
-        return {'success': true, 'user': UserModel.fromJson(data['user'])};
+        return {'success': true, 'user': UserModel.fromJson(data['user'], baseUrl: baseUrl)};
       } else {
         return {'success': false, 'message': data['message'] ?? "Erreur lors de l'inscription"};
       }
@@ -131,16 +200,57 @@ class ApiService {
 
   // --- INCIDENTS ---
 
-  static Future<List<IncidentModel>> getIncidents() async {
+  static Future<bool> updateFCMToken(String token) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/incidents'));
+      final userId = await getUserId();
+      if (userId == null) return false;
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/users/fcm-token'),
+        headers: await getHeaders(),
+        body: jsonEncode({'fcmToken': token}),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      if (kDebugMode) print('Error updating FCM token: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> forgotPassword(String email) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/forgot-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      if (kDebugMode) print('Error in forgotPassword: $e');
+      return false;
+    }
+  }
+
+  static Future<List<IncidentModel>> getIncidents({
+    int page = 1,
+    String category = '',
+    String severity = '',
+    String search = '',
+    int limit = 50,
+  }) async {
+    try {
+      String url = '$baseUrl/incidents?page=$page&limit=$limit';
+      if (category.isNotEmpty) url += '&category=$category';
+      if (severity.isNotEmpty) url += '&severity=$severity';
+      if (search.isNotEmpty) url += '&search=$search';
+
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> body = jsonDecode(response.body);
         final List data = body['incidents'] ?? [];
-        List<IncidentModel> list = data.map((item) => IncidentModel.fromJson(item, baseUrl: baseUrl)).toList();
-        // User feed filter: only approved or resolved
-        return list.where((inc) => inc.status == 'approved' || inc.status == 'resolved').toList();
+        return data.map((item) => IncidentModel.fromJson(item, baseUrl: baseUrl)).toList();
       } else {
         throw Exception('Erreur serveur (${response.statusCode})');
       }
@@ -157,7 +267,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/incidents/my'),
         headers: {'Authorization': 'Bearer $token'},
-      );
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> body = jsonDecode(response.body);
@@ -300,21 +410,149 @@ class ApiService {
     }
   }
 
-  static Future<bool> markIncidentResolved(String id) async {
+  static Future<bool> upvoteIncident(String id) async {
     try {
       final token = await getToken();
       final response = await http.put(
-        Uri.parse('$baseUrl/incidents/$id/status'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'status': 'resolved'}),
+        Uri.parse('$baseUrl/incidents/$id/upvote'),
+        headers: {'Authorization': 'Bearer $token'},
       );
       return response.statusCode == 200;
     } catch (e) {
       return false;
     }
+  }
+
+  static Future<IncidentModel?> getIncidentById(String id) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/incidents/$id'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return IncidentModel.fromJson(data['incident'], baseUrl: baseUrl);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getNotifications() async {
+    try {
+      final token = await getToken();
+      final response = await http.get(
+        Uri.parse('$baseUrl/notifications'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {'notifications': [], 'unreadCount': 0};
+    } catch (e) {
+      return {'notifications': [], 'unreadCount': 0};
+    }
+  }
+
+  static Future<bool> markNotificationRead(String id) async {
+    try {
+      final token = await getToken();
+      final response = await http.put(
+        Uri.parse('$baseUrl/notifications/$id/read'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<bool> markAllNotificationsRead() async {
+    try {
+      final token = await getToken();
+      final response = await http.put(
+        Uri.parse('$baseUrl/notifications/read-all'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<Map<String, dynamic>> submitAppeal(String email, String message) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/support/appeal'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'message': message}),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      throw Exception('Erreur support: $e');
+    }
+  }
+
+  static Future<List<dynamic>> getAppealStatus(String email) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/support/appeal-status/$email'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['appeals'] ?? [];
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getAdminAppeals() async {
+    try {
+      final token = await getToken();
+      final response = await http.get(
+        Uri.parse('$baseUrl/support/appeals'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['appeals'] ?? [];
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static Future<bool> replyToAppeal(String id, String reply, {String status = 'replied'}) async {
+    try {
+      final token = await getToken();
+      final response = await http.put(
+        Uri.parse('$baseUrl/support/appeals/$id/reply'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'adminReply': reply, 'status': status}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<bool> resetPassword(String token, String password) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/reset-password/$token'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'password': password}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<List<UserModel>> getUsers({String? search}) async {
+    return getAllUsers(search: search);
   }
 
   // --- ADMIN ---
@@ -389,7 +627,7 @@ class ApiService {
       if (response.statusCode == 200) {
         final Map<String, dynamic> body = jsonDecode(response.body);
         final List data = body['users'] ?? [];
-        return data.map((item) => UserModel.fromJson(item)).toList();
+        return data.map((item) => UserModel.fromJson(item, baseUrl: baseUrl)).toList();
       }
       throw Exception('Erreur ${response.statusCode}');
     } catch (e) {

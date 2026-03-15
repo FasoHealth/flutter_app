@@ -10,6 +10,8 @@ import '../pages/notifications_page.dart';
 import '../pages/admin_overview_page.dart';
 import '../pages/admin_moderation_page.dart';
 import '../pages/admin_users_page.dart';
+import '../pages/admin_appeals_page.dart';
+import '../pages/profile_page.dart';
 
 class MainShell extends StatefulWidget {
   final bool isDarkMode;
@@ -64,30 +66,69 @@ class _MainShellState extends State<MainShell> {
         return const AdminModerationPage();
       case AppSection.adminUsers:
         return const AdminUsersPage();
+      case AppSection.adminAppeals:
+        return const AdminAppealsPage();
+      case AppSection.profile:
+        return const ProfilePage();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _isDarkMode ? AppTheme.bgDark : const Color(0xFFF8FAFC),
-      body: Row(
+    final isDesktop = MediaQuery.of(context).size.width > 900;
 
+    return Scaffold(
+      backgroundColor: _isDarkMode ? const Color(0xFF0F172A) : AppTheme.bgPrimary,
+      drawer: !isDesktop 
+          ? Drawer(
+              child: AppSidebar(
+                selected: _section,
+                onSelect: (s) {
+                  _navigateTo(s);
+                  Navigator.pop(context);
+                },
+                isDarkMode: _isDarkMode,
+                onToggleTheme: () {
+                  final next = !_isDarkMode;
+                  setState(() => _isDarkMode = next);
+                  widget.onThemeChanged?.call(next);
+                },
+              ),
+            )
+          : null,
+      body: Row(
         children: [
-          AppSidebar(
-            selected: _section,
-            onSelect: (s) => setState(() => _section = s),
-            isDarkMode: _isDarkMode,
-            onToggleTheme: () async {
-              final next = !_isDarkMode;
-              await AppTheme.setIsDarkMode(next);
-              if (mounted) {
+          if (isDesktop)
+            AppSidebar(
+              selected: _section,
+              onSelect: _navigateTo,
+              isDarkMode: _isDarkMode,
+              onToggleTheme: () {
+                final next = !_isDarkMode;
                 setState(() => _isDarkMode = next);
                 widget.onThemeChanged?.call(next);
-              }
-            },
+              },
+            ),
+          Expanded(
+            child: Column(
+              children: [
+                if (!isDesktop)
+                  AppBar(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    iconTheme: IconThemeData(color: _isDarkMode ? Colors.white : AppTheme.brandNavy),
+                    title: Text(
+                      "CS Alert",
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white : AppTheme.brandNavy,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                Expanded(child: _buildPage()),
+              ],
+            ),
           ),
-          Expanded(child: _buildPage()),
         ],
       ),
     );

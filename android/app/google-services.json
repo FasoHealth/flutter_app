@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "727815484300",
+    "project_id": "comminity-system-alert",
+    "storage_bucket": "comminity-system-alert.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:727815484300:android:4f081d18893e1119c75ca9",
+        "android_client_info": {
+          "package_name": "com.example.community_security_alert_app_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAh38HT4QO0A8a6ynot-LXZoG6b2Co5UHI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

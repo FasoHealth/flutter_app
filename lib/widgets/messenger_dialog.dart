@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/message_model.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../pages/profile_page.dart';
 
 class MessengerDialog extends StatefulWidget {
   final String incidentId;
@@ -81,7 +82,7 @@ class _MessengerDialogState extends State<MessengerDialog> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? AppTheme.textPrimary : const Color(0xFF1E293B);
     final textDim = isDark ? AppTheme.textSecondary : const Color(0xFF64748B);
-    final cardBg = isDark ? AppTheme.cardDark : Colors.white;
+    final cardBg = isDark ? const Color(0xFF1F2937) : Colors.white;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.75,
@@ -156,7 +157,7 @@ class _MessengerDialogState extends State<MessengerDialog> {
                     style: TextStyle(color: textColor),
                     decoration: InputDecoration(
                       hintText: 'Écrire un message...',
-                      fillColor: isDark ? AppTheme.bgDark : Colors.grey[100],
+                      fillColor: isDark ? const Color(0xFF111827) : Colors.grey[100],
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     ),
@@ -186,7 +187,7 @@ class _MessengerDialogState extends State<MessengerDialog> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         decoration: BoxDecoration(
-          color: isMe ? AppTheme.accentPurple : (Theme.of(context).brightness == Brightness.dark ? AppTheme.bgDark : Colors.grey[200]),
+          color: isMe ? AppTheme.accentPurple : (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF111827) : Colors.grey[200]),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(20),
             topRight: const Radius.circular(20),
@@ -197,7 +198,11 @@ class _MessengerDialogState extends State<MessengerDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!isMe) Text(m.senderName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppTheme.accentPurple)),
+            if (!isMe) 
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfilePage(userId: m.senderId))),
+                child: Text(m.senderName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppTheme.accentPurple)),
+              ),
             if (!isMe) const SizedBox(height: 2),
             Text(
               m.content, 
