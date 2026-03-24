@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
@@ -35,7 +36,7 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
 
   final List<Map<String, dynamic>> _categories = [
     {'value': 'theft', 'label': 'Vol', 'icon': Icons.shield_outlined},
-    {'value': 'assault', 'label': 'Agression', 'icon': Icons.warning_amber_rounded},
+    {'value': 'security', 'label': 'Sécurité', 'icon': Icons.security_rounded},
     {'value': 'vandalism', 'label': 'Vandalisme', 'icon': Icons.gavel_rounded},
     {'value': 'suspicious_activity', 'label': 'Suspect', 'icon': Icons.visibility_outlined},
     {'value': 'fire', 'label': 'Incendie', 'icon': Icons.local_fire_department_outlined},
@@ -73,29 +74,81 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
     });
 
     try {
+      // 1. Vérifier si les services de localisation sont activés
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() => _error = "Les services de localisation sont désactivés.");
+        return;
+      }
+
+      // 2. Vérifier et demander les permissions
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() => _error = "Permission de localisation refusée.");
+          return;
+        }
       }
 
-      if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
-        Position position = await Geolocator.getCurrentPosition();
-        List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+      if (permission == LocationPermission.deniedForever) {
+        setState(() => _error = "Les permissions de localisation sont définitivement refusées.");
+        return;
+      }
+
+      // 3. Obtenir la position avec un timeout et une précision équilibrée pour plus de rapidité
+      Position? position;
+      try {
+        // Essayer d'abord d'obtenir la position actuelle avec un timeout court
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.medium,
+          timeLimit: const Duration(seconds: 10),
+        );
+      } catch (e) {
+        // En cas de timeout, essayer de récupérer la dernière position connue (plus rapide)
+        if (kDebugMode) print("Timeout position actuelle, essai dernière connue...");
+        position = await Geolocator.getLastKnownPosition();
+      }
+
+      if (position != null) {
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          position.latitude, 
+          position.longitude,
+        ).timeout(const Duration(seconds: 10));
         
         if (placemarks.isNotEmpty) {
           Placemark place = placemarks[0];
+          
+          String rue = place.street ?? '';
+          String quartier = place.subLocality ?? '';
+          String ville = place.locality ?? '';
+          String province = place.administrativeArea ?? '';
+          String pays = place.country ?? '';
+          
+          List<String> addressParts = [];
+          if (rue.isNotEmpty && rue != quartier) addressParts.add(rue);
+          if (quartier.isNotEmpty) addressParts.add(quartier);
+          if (ville.isNotEmpty) addressParts.add(ville);
+          if (province.isNotEmpty) addressParts.add(province);
+          if (pays.isNotEmpty) addressParts.add(pays);
+          
+          String fullAddress = addressParts.join(', ');
+
           setState(() {
-            _latitude = position.latitude;
-            _longitude = position.longitude;
-            _addressController.text = "${place.street}, ${place.subLocality}";
-            _cityController.text = place.locality ?? 'Ouagadougou';
+            _latitude = position!.latitude;
+            _longitude = position!.longitude;
+            _addressController.text = fullAddress;
+            _cityController.text = ville.isNotEmpty ? ville : (place.subAdministrativeArea ?? 'Ouagadougou');
           });
         }
+      } else {
+        setState(() => _error = "Impossible d'obtenir votre position. Vérifiez votre GPS.");
       }
     } catch (e) {
-      setState(() => _error = "Impossible de récupérer votre position.");
+      if (kDebugMode) print("Erreur localisation: $e");
+      setState(() => _error = "Erreur de localisation. Veuillez saisir l'adresse manuellement.");
     } finally {
-      setState(() => _geoLoading = false);
+      if (mounted) setState(() => _geoLoading = false);
     }
   }
 
@@ -181,9 +234,12 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
           children: [
             const Icon(Icons.shield_outlined, color: AppTheme.brandOrange, size: 28),
             const SizedBox(width: 12),
-            Text(
-              "Signaler un incident",
-              style: GoogleFonts.inter(fontSize: 28, fontWeight: FontWeight.w700, color: const Color(0xFF222222)),
+            Expanded(
+              child: Text(
+                "Signaler un incident",
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w700, color: const Color(0xFF222222)),
+              ),
             ),
           ],
         ),
@@ -241,13 +297,18 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildLabel("Localisation"),
+                Expanded(child: _buildLabel("Localisation")),
                 TextButton.icon(
                   onPressed: _geoLoading ? null : _getCurrentLocation,
                   icon: _geoLoading 
                     ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.my_location_rounded, size: 14),
-                  label: Text(_geoLoading ? "Localisation..." : "Ma position GPS"),
+                  label: Flexible(
+                    child: Text(
+                      _geoLoading ? "Localisation..." : "Ma position GPS",
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                   style: TextButton.styleFrom(foregroundColor: AppTheme.brandOrange),
                 ),
               ],
@@ -332,76 +393,107 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
   }
 
   Widget _buildCategoryGrid() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 1,
-      ),
-      itemCount: _categories.length,
-      itemBuilder: (context, index) {
-        final cat = _categories[index];
-        final selected = _category == cat['value'];
-        return InkWell(
-          onTap: () => setState(() => _category = cat['value']),
-          child: Container(
-            decoration: BoxDecoration(
-              color: selected ? AppTheme.brandOrangePale : const Color(0xFFF8F4EE),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: selected ? AppTheme.brandOrange : Colors.transparent, width: 2),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(cat['icon'], color: selected ? AppTheme.brandOrange : const Color(0xFF1A2035), size: 20),
-                const SizedBox(height: 4),
-                Text(cat['label'], style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: selected ? AppTheme.brandOrange : const Color(0xFF1A2035))),
-              ],
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 0.85,
           ),
+          itemCount: _categories.length,
+          itemBuilder: (context, index) {
+            final cat = _categories[index];
+            final selected = _category == cat['value'];
+            return InkWell(
+              onTap: () => setState(() => _category = cat['value']),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: selected ? AppTheme.brandOrangePale : const Color(0xFFF8F4EE),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: selected ? AppTheme.brandOrange : Colors.transparent, width: 2),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(cat['icon'], color: selected ? AppTheme.brandOrange : const Color(0xFF1A2035), size: 20),
+                    const SizedBox(height: 4),
+                    Flexible(
+                      child: Text(
+                        cat['label'],
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: selected ? AppTheme.brandOrange : const Color(0xFF1A2035),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
   Widget _buildSeverityGrid() {
-    return Row(
-      children: _severities.map((sev) {
-        final selected = _severity == sev['value'];
-        Color sevColor;
-        switch(sev['value']) {
-          case 'low': sevColor = AppTheme.green; break;
-          case 'medium': sevColor = AppTheme.yellow; break;
-          case 'high': sevColor = const Color(0xFFF97316); break;
-          case 'critical': sevColor = AppTheme.red; break;
-          default: sevColor = Colors.grey;
-        }
-        return Expanded(
-          child: Padding(
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _severities.map((sev) {
+          final selected = _severity == sev['value'];
+          Color sevColor;
+          switch(sev['value']) {
+            case 'low': sevColor = AppTheme.green; break;
+            case 'medium': sevColor = AppTheme.yellow; break;
+            case 'high': sevColor = const Color(0xFFF97316); break;
+            case 'critical': sevColor = AppTheme.red; break;
+            default: sevColor = Colors.grey;
+          }
+          return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: InkWell(
               onTap: () => setState(() => _severity = sev['value']),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                width: 85,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                 decoration: BoxDecoration(
                   color: selected ? sevColor.withOpacity(0.1) : Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: selected ? sevColor : const Color(0xFFE8E3DB), width: 2),
                 ),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(sev['label'], style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12, color: selected ? sevColor : const Color(0xFF222222))),
-                    Text(sev['desc'], style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF666666))),
+                    Text(
+                      sev['label'],
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        color: selected ? sevColor : const Color(0xFF222222),
+                      ),
+                    ),
+                    Text(
+                      sev['desc'],
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF666666)),
+                    ),
                   ],
                 ),
               ),
             ),
-          ),
-        );
-      }).toList(),
+          );
+        }).toList(),
+      ),
     );
   }
 

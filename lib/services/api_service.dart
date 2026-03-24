@@ -11,10 +11,10 @@ import 'package:http_parser/http_parser.dart';
 class ApiService {
   // --- CONFIGURATION RÉSEAU ---
   // Mettre 'true' pour utiliser le backend local, 'false' pour la production Render
-  static const bool _useLocalBackend = false;
+  static const bool _useLocalBackend = true;
   
   // Remplacer par l'IP de votre PC (ex: 192.168.1.15) pour tester sur téléphone physique
-  static const String _manualServerIp = "192.168.1.45"; 
+  static const String _manualServerIp = "15.15.15.78"; 
 
   static String get baseUrl {
     if (_useLocalBackend) {
@@ -22,9 +22,9 @@ class ApiService {
         return "http://localhost:5000/api";
       }
       // Pour les tests sur appareil physique via wifi ou émulateur Android
-      // Si vous testez sur un téléphone réel, utilisez _manualServerIp
-      // return "http://$_manualServerIp:5000/api";
-      return "http://10.0.2.2:5000/api";
+      // Si vous testez sur un téléphone réel (Infinix X650B), utilisez _manualServerIp
+      return "http://$_manualServerIp:5000/api";
+      // return "http://10.0.2.2:5000/api";
     } else {
       // URL de production sur Render
       return "https://cominity-system-management.onrender.com/api";

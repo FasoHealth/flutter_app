@@ -14,13 +14,8 @@ class LandingPage extends StatefulWidget {
 }
 
 class _LandingPageState extends State<LandingPage> {
-  bool _showAppBanner = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _showAppBanner = true;
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -64,63 +59,7 @@ class _LandingPageState extends State<LandingPage> {
           ),
           Column(
             children: [
-              if (_showAppBanner)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF1A2035), Color(0xFF2E3D6A)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black12, blurRadius: 12, offset: Offset(0, 4))
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: AppTheme.brandOrange,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.shield_outlined, color: Colors.white, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "CS Alert Mobile",
-                              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
-                            ),
-                            Text(
-                              "Plus rapide, notifications push",
-                              style: GoogleFonts.inter(color: Colors.white.withOpacity(0.7), fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {},
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: const Color(0xFF1A2035),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                        ),
-                        child: const Text("Installer"),
-                      ),
-                      IconButton(
-                        onPressed: () => setState(() => _showAppBanner = false),
-                        icon: const Icon(Icons.close, color: Colors.white54, size: 16),
-                      ),
-                    ],
-                  ),
-                ),
+
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                 child: Row(
