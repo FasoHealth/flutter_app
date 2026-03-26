@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 import '../models/incident_model.dart';
 import '../theme/app_theme.dart';
+import '../widgets/messenger_dialog.dart';
 import 'incident_detail_page.dart';
 
 class AdminModerationPage extends StatefulWidget {
@@ -335,13 +336,42 @@ class _AdminModerationPageState extends State<AdminModerationPage> {
             fullWidth: true,
           ),
         const SizedBox(height: 8),
-        _buildActionButton(
-          icon: Icons.visibility_outlined,
-          label: "Voir les détails",
-          color: const Color(0xFF1A2035),
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => IncidentDetailPage(incident: inc))),
-          isOutline: true,
-          fullWidth: true,
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionButton(
+                icon: Icons.chat_bubble_outline_rounded,
+                label: "Chatter",
+                color: AppTheme.brandOrange,
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => Container(
+                      height: MediaQuery.of(context).size.height * 0.8,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+                      ),
+                      child: MessengerDialog(incidentId: inc.id, incidentTitle: inc.title),
+                    ),
+                  );
+                },
+                isOutline: true,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildActionButton(
+                icon: Icons.visibility_outlined,
+                label: "Détails",
+                color: const Color(0xFF1A2035),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => IncidentDetailPage(incident: inc))),
+                isOutline: true,
+              ),
+            ),
+          ],
         ),
       ],
     );

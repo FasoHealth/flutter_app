@@ -55,7 +55,7 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
   }
 
   Future<void> _handleUpvote() async {
-    if (_userId == null || _incident.status != 'pending' || _userRole == 'ADMINISTRATEUR') return;
+    if (_userId == null || _incident.status != 'pending' || (_userRole == 'admin' || _userRole == 'administrateur')) return;
 
     setState(() => _loading = true);
     try {
@@ -117,7 +117,7 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
-          if (_userRole == 'ADMINISTRATEUR' && _incident.status == 'approved')
+          if ((_userRole == 'admin' || _userRole == 'administrateur') && _incident.status == 'approved')
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: TextButton.icon(
@@ -442,7 +442,7 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
   }
 
   Widget _buildChatSection() {
-    final canChat = _userId == _incident.reportedBy || _userRole == 'ADMINISTRATEUR';
+    final canChat = _userId == _incident.reportedBy || (_userRole == 'admin' || _userRole == 'administrateur');
     if (!canChat) return const SizedBox.shrink();
 
     return Column(

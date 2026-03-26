@@ -11,10 +11,10 @@ import 'package:http_parser/http_parser.dart';
 class ApiService {
   // --- CONFIGURATION RÉSEAU ---
   // Mettre 'true' pour utiliser le backend local, 'false' pour la production Render
-  static const bool _useLocalBackend = true;
+  static const bool _useLocalBackend = false;
   
   // Remplacer par l'IP de votre PC (ex: 192.168.1.15) pour tester sur téléphone physique
-  static const String _manualServerIp = "15.15.15.78"; 
+  static const String _manualServerIp = "192.168.100.237"; 
 
   static String get baseUrl {
     if (_useLocalBackend) {
@@ -189,10 +189,59 @@ class ApiService {
 
       final data = jsonDecode(response.body);
       if (response.statusCode == 201) {
-        return {'success': true, 'user': UserModel.fromJson(data['user'], baseUrl: baseUrl)};
+        return {
+          'success': true, 
+          'message': data['message'],
+          'email': userData['email']
+        };
       } else {
         return {'success': false, 'message': data['message'] ?? "Erreur lors de l'inscription"};
       }
+    } catch (e) {
+      return {'success': false, 'message': 'Erreur réseau : $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> verifyCode(String email, String code) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/verify-code'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'code': code,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        if (data['token'] != null) {
+          await saveToken(data['token']);
+          final user = UserModel.fromJson(data['user'], baseUrl: baseUrl);
+          await saveUserInfo(user);
+        }
+        return {'success': true, 'message': data['message']};
+      } else {
+        return {'success': false, 'message': data['message'] ?? "Code invalide"};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Erreur réseau : $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> resendVerificationCode(String email) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/resend-code'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+
+      final data = jsonDecode(response.body);
+      return {
+        'success': response.statusCode == 200,
+        'message': data['message'] ?? "Erreur lors de l'envoi du code"
+      };
     } catch (e) {
       return {'success': false, 'message': 'Erreur réseau : $e'};
     }
@@ -386,26 +435,79 @@ class ApiService {
     }
   }
 
-  static Future<bool> sendMessage(String incidentId, String content) async {
+  static Future<bool> sendMessage(String incidentId, String content, {XFile? file, String? type}) async {
     try {
       final token = await getToken();
       if (token == null) return false;
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/messages/$incidentId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'content': content}),
-      );
+      if (file == null) {
+        final response = await http.post(
+          Uri.parse('$baseUrl/messages/$incidentId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'content': content,
+            if (type != null) 'type': type,
+          }),
+        );
+        return response.statusCode == 201;
+      } else {
+        var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/messages/$incidentId'));
+        request.headers.addAll({'Authorization': 'Bearer $token'});
+        request.fields['content'] = content;
+        if (type != null) request.fields['type'] = type;
 
-      print('POST Message Status: ${response.statusCode}');
-      print('POST Message Body: ${response.body}');
+        final bytes = await file.readAsBytes();
+      String mimeTypeRaw = file.mimeType ?? '';
+      String majorType = 'application';
+      String subtype = 'octet-stream';
+      String filename = file.name;
 
-      return response.statusCode == 201;
+      // Amélioration de la détection pour le Web ou les fichiers sans extension
+      if (mimeTypeRaw.contains('/')) {
+        final parts = mimeTypeRaw.split('/');
+        majorType = parts[0];
+        subtype = parts[1];
+      } else {
+        String ext = filename.contains('.') ? filename.split('.').last.toLowerCase() : '';
+        
+        // Si pas d'extension, on se base sur le paramètre 'type' passé
+        if (ext.isEmpty || ext == 'blob') {
+          if (type == 'audio') {
+            majorType = 'audio';
+            subtype = 'm4a';
+            filename = 'vocal.m4a';
+          } else if (type == 'image') {
+            majorType = 'image';
+            subtype = 'jpeg';
+            filename = 'upload.jpg';
+          } else if (type == 'video') {
+            majorType = 'video';
+            subtype = 'mp4';
+            filename = 'video.mp4';
+          }
+        } else {
+          if (['png', 'jpg', 'jpeg', 'webp'].contains(ext)) majorType = 'image';
+          else if (['mp4', 'mov', 'avi'].contains(ext)) majorType = 'video';
+          else if (['m4a', 'mp3', 'wav', 'aac', 'webm'].contains(ext)) majorType = 'audio';
+          subtype = ext;
+        }
+      }
+
+      request.files.add(http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: filename,
+        contentType: MediaType(majorType, subtype),
+      ));
+
+        var response = await request.send();
+        return response.statusCode == 201;
+      }
     } catch (e) {
-      print('POST Message Error: $e');
+      if (kDebugMode) print('POST Message Error: $e');
       return false;
     }
   }

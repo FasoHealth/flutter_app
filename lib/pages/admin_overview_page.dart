@@ -230,6 +230,7 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
 
   Widget _buildChartCard({required String title, required IconData icon, required Widget child}) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -243,7 +244,13 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
             children: [
               Icon(icon, color: AppTheme.brandOrange, size: 20),
               const SizedBox(width: 10),
-              Text(title, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -254,27 +261,35 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
   }
 
   Widget _buildBarChartPlaceholder() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: List.generate(7, (i) {
-        final height = [40.0, 80.0, 120.0, 60.0, 100.0, 150.0, 90.0][i];
-        return Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Container(
-              width: 30,
-              height: height,
-              decoration: BoxDecoration(
-                color: AppTheme.brandOrange,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text("${i+1} Mar", style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF999999))),
-          ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final barWidth = (constraints.maxWidth / 7) - 8;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: List.generate(7, (i) {
+            final height = [40.0, 80.0, 120.0, 60.0, 100.0, 150.0, 90.0][i];
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  width: barWidth > 0 ? barWidth.clamp(10, 30) : 10,
+                  height: height,
+                  decoration: BoxDecoration(
+                    color: AppTheme.brandOrange,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "${i + 1} Mar",
+                  style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF999999)),
+                ),
+              ],
+            );
+          }),
         );
-      }),
+      },
     );
   }
 

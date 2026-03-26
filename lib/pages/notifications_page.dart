@@ -224,9 +224,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(notif['title'] ?? "", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15)),
+                          Expanded(
+                            child: Text(
+                              notif['title'] ?? "",
+                              style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                           if (!isRead)
                             Container(
+                              margin: const EdgeInsets.only(left: 8),
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(color: AppTheme.brandOrange.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
                               child: Text("NOUVEAU", style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w800, color: AppTheme.brandOrange)),
@@ -234,24 +241,41 @@ class _NotificationsPageState extends State<NotificationsPage> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(notif['message'] ?? "", style: GoogleFonts.inter(color: const Color(0xFF5A6478), fontSize: 14, height: 1.5)),
+                      Text(
+                        notif['message'] ?? "",
+                        style: GoogleFonts.inter(color: const Color(0xFF5A6478), fontSize: 13, height: 1.4),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       const SizedBox(height: 12),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           if (notif['incident'] != null)
-                            Row(
-                              children: [
-                                const Icon(Icons.description_outlined, size: 12, color: Color(0xFF9BA3B4)),
-                                const SizedBox(width: 6),
-                                Text(notif['incident']['title'] ?? "", style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.brandOrange)),
-                              ],
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.description_outlined, size: 12, color: Color(0xFF9BA3B4)),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      notif['incident']['title'] ?? "",
+                                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.brandOrange),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                          const SizedBox(width: 8),
                           Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF9BA3B4)),
+                              const Icon(Icons.access_time_rounded, size: 11, color: Color(0xFF9BA3B4)),
                               const SizedBox(width: 4),
-                              Text(_timeAgo(DateTime.parse(notif['createdAt'])), style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF9BA3B4))),
+                              Text(
+                                _timeAgo(DateTime.parse(notif['createdAt'])),
+                                style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF9BA3B4)),
+                              ),
                             ],
                           ),
                         ],

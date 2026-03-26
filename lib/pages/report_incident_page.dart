@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'dart:io';
@@ -111,34 +113,81 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
       }
 
       if (position != null) {
-        List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude, 
-          position.longitude,
-        ).timeout(const Duration(seconds: 10));
-        
-        if (placemarks.isNotEmpty) {
-          Placemark place = placemarks[0];
+        try {
+          List<Placemark> placemarks = await placemarkFromCoordinates(
+            position.latitude, 
+            position.longitude,
+          ).timeout(const Duration(seconds: 10));
           
-          String rue = place.street ?? '';
-          String quartier = place.subLocality ?? '';
-          String ville = place.locality ?? '';
-          String province = place.administrativeArea ?? '';
-          String pays = place.country ?? '';
-          
-          List<String> addressParts = [];
-          if (rue.isNotEmpty && rue != quartier) addressParts.add(rue);
-          if (quartier.isNotEmpty) addressParts.add(quartier);
-          if (ville.isNotEmpty) addressParts.add(ville);
-          if (province.isNotEmpty) addressParts.add(province);
-          if (pays.isNotEmpty) addressParts.add(pays);
-          
-          String fullAddress = addressParts.join(', ');
+          if (placemarks.isNotEmpty) {
+            Placemark place = placemarks[0];
+            
+            String rue = place.street ?? '';
+            String quartier = place.subLocality ?? '';
+            String ville = place.locality ?? '';
+            String province = place.administrativeArea ?? '';
+            String pays = place.country ?? '';
+            
+            List<String> addressParts = [];
+            if (rue.isNotEmpty && rue != quartier) addressParts.add(rue);
+            if (quartier.isNotEmpty) addressParts.add(quartier);
+            if (ville.isNotEmpty) addressParts.add(ville);
+            if (province.isNotEmpty) addressParts.add(province);
+            if (pays.isNotEmpty) addressParts.add(pays);
+            
+            String fullAddress = addressParts.join(', ');
 
+            setState(() {
+              _latitude = position!.latitude;
+              _longitude = position!.longitude;
+              _addressController.text = fullAddress;
+              _cityController.text = ville.isNotEmpty ? ville : (place.subAdministrativeArea ?? 'Ouagadougou');
+              // _selectedLocation = LatLng(position!.latitude, position!.longitude); // Assuming LatLng is defined elsewhere
+            });
+          }
+        } catch (e) {
+          if (kDebugMode) print("Erreur de géocodage inversé, essai de l'API de secours Nominatim...");
+          
+          try {
+            final url = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=${position!.latitude}&lon=${position!.longitude}&zoom=18&addressdetails=1');
+            final response = await http.get(url, headers: {'User-Agent': 'CommunitySecurityAlert/1.0'}).timeout(const Duration(seconds: 10));
+            
+            if (response.statusCode == 200) {
+              final data = json.decode(response.body);
+              if (data != null && data['address'] != null) {
+                final address = data['address'];
+                final rue = address['road'] ?? '';
+                final quartier = address['neighbourhood'] ?? address['suburb'] ?? '';
+                final ville = address['city'] ?? address['town'] ?? address['village'] ?? '';
+                final province = address['state'] ?? address['region'] ?? '';
+                final pays = address['country'] ?? '';
+                
+                List<String> parts = [];
+                if (rue.isNotEmpty && rue != quartier) parts.add(rue);
+                if (quartier.isNotEmpty) parts.add(quartier);
+                if (ville.isNotEmpty) parts.add(ville);
+                if (province.isNotEmpty) parts.add(province);
+                if (pays.isNotEmpty) parts.add(pays);
+                
+                setState(() {
+                  _latitude = position!.latitude;
+                  _longitude = position!.longitude;
+                  _addressController.text = parts.join(', ');
+                  _cityController.text = ville.isNotEmpty ? ville : (address['state'] ?? 'Ouagadougou');
+                });
+                return;
+              }
+            }
+          } catch (eFallback) {
+             if (kDebugMode) print("Erreur API Nominatim: $eFallback");
+          }
+
+          // Dernier recours (cas critique hors-ligne)
           setState(() {
             _latitude = position!.latitude;
             _longitude = position!.longitude;
-            _addressController.text = fullAddress;
-            _cityController.text = ville.isNotEmpty ? ville : (place.subAdministrativeArea ?? 'Ouagadougou');
+            _addressController.text = "${position!.latitude.toStringAsFixed(4)}, ${position!.longitude.toStringAsFixed(4)}";
+            _cityController.text = 'Ouagadougou';
           });
         }
       } else {
@@ -178,7 +227,21 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Signalement envoyé avec succès !'), backgroundColor: AppTheme.green),
           );
-          Navigator.pop(context);
+          
+          // Au lieu de fermer la fenêtre (qui ferait planter la navigation sur Web), on vide le formulaire
+          setState(() {
+            _titleController.clear();
+            _descriptionController.clear();
+            _addressController.clear();
+            _cityController.text = 'Ouagadougou';
+            _latitude = null;
+            _longitude = null;
+            _images.clear();
+            _category = 'other';
+            _severity = 'medium';
+            _isAnonymous = false;
+          });
+          
         } else {
           setState(() => _error = "Erreur lors de l'envoi du signalement.");
         }
@@ -303,11 +366,9 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
                   icon: _geoLoading 
                     ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.my_location_rounded, size: 14),
-                  label: Flexible(
-                    child: Text(
-                      _geoLoading ? "Localisation..." : "Ma position GPS",
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  label: Text(
+                    _geoLoading ? "Localisation..." : "Ma position GPS",
+                    overflow: TextOverflow.ellipsis,
                   ),
                   style: TextButton.styleFrom(foregroundColor: AppTheme.brandOrange),
                 ),
@@ -363,10 +424,14 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Text(text, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF222222))),
+          Flexible(
+            child: Text(text, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF222222))),
+          ),
           if (hint != null) ...[
             const SizedBox(width: 8),
-            Text(hint, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF999999))),
+            Flexible(
+              child: Text(hint, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF999999))),
+            ),
           ],
         ],
       ),
@@ -531,7 +596,9 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.file(File(_images[index].path), width: 80, height: 80, fit: BoxFit.cover),
+                  child: kIsWeb 
+                    ? Image.network(_images[index].path, width: 80, height: 80, fit: BoxFit.cover)
+                    : Image.file(File(_images[index].path), width: 80, height: 80, fit: BoxFit.cover),
                 ),
                 Positioned(
                   top: -6,
@@ -569,7 +636,9 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
               ),
               const Icon(Icons.person_off_outlined, size: 18),
               const SizedBox(width: 8),
-              Text("Signaler anonymement", style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14)),
+              Flexible(
+                child: Text("Signaler anonymement", style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14)),
+              ),
             ],
           ),
           if (_isAnonymous)
@@ -656,7 +725,9 @@ class _ReportIncidentPageState extends State<ReportIncidentPage> {
             children: [
               Icon(Icons.info_outline_rounded, size: 16, color: textColor),
               const SizedBox(width: 8),
-              Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, color: textColor)),
+              Flexible(
+                child: Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, color: textColor)),
+              ),
             ],
           ),
           const SizedBox(height: 8),

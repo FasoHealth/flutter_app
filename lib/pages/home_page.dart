@@ -176,8 +176,10 @@ class _HomePageState extends State<HomePage> {
                                     child: Text(
                                       incident.location['address'] ?? 'Lieu non spécifié',
                                       style: const TextStyle(fontSize: 12, color: AppTheme.textDim),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
+                                  const SizedBox(width: 8),
                                   const Icon(Icons.thumb_up_alt_outlined, size: 14, color: AppTheme.textDim),
                                   const SizedBox(width: 4),
                                   Text('${incident.upvoteCount}', style: const TextStyle(fontSize: 12, color: AppTheme.textDim)),

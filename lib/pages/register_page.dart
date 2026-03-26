@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'email_verification_page.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../layout/main_shell.dart';
@@ -21,6 +22,8 @@ class _RegisterPageState extends State<RegisterPage> {
   
   String _role = 'citizen';
   bool _loading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   String? _error;
 
   Future<void> _handleRegister() async {
@@ -49,9 +52,11 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (result['success']) {
         if (mounted) {
-          Navigator.pushReplacement(
+          Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const MainShell(isDarkMode: false)),
+            MaterialPageRoute(
+              builder: (_) => EmailVerificationPage(email: _emailController.text.trim()),
+            ),
           );
         }
       } else {
@@ -205,8 +210,18 @@ class _RegisterPageState extends State<RegisterPage> {
                               children: [
                                 TextField(
                                   controller: _passwordController,
-                                  obscureText: true,
-                                  decoration: const InputDecoration(prefixIcon: Icon(Icons.lock_outline_rounded, size: 20), hintText: '••••••••'),
+                                  obscureText: _obscurePassword,
+                                  decoration: InputDecoration(
+                                    prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                        size: 20,
+                                      ),
+                                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                    ),
+                                    hintText: '••••••••',
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text('8 caractères min., dont 1 chiffre.', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF666666))),
@@ -217,8 +232,18 @@ class _RegisterPageState extends State<RegisterPage> {
                           Expanded(
                             child: TextField(
                               controller: _confirmPasswordController,
-                              obscureText: true,
-                              decoration: const InputDecoration(prefixIcon: Icon(Icons.lock_outline_rounded, size: 20), hintText: '••••••••'),
+                              obscureText: _obscureConfirmPassword,
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                                ),
+                                hintText: '••••••••',
+                              ),
                             ),
                           ),
                         ],

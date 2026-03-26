@@ -48,6 +48,9 @@ dependencies:
   firebase_core: ^4.5.0
   firebase_messaging: ^16.1.2
   flutter_local_notifications: ^21.0.0
+  record: ^6.2.0
+  audioplayers: ^6.6.0
+  video_player: ^2.11.1
   
 
 dev_dependencies:

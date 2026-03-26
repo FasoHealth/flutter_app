@@ -156,13 +156,14 @@ class _LoginPageState extends State<LoginPage> {
             flex: 1,
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(40.0),
+                padding: EdgeInsets.all(isDesktop ? 40.0 : 24.0),
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 400),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             'Bon retour',
@@ -241,8 +242,9 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             'Mot de passe',
@@ -283,8 +285,9 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           child: _loading
                               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                              : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                              : Wrap(
+                                  alignment: WrapAlignment.center,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     Text('Se connecter', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 16)),
                                     const SizedBox(width: 8),
@@ -295,8 +298,9 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 32),
                       Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text('Nouveau ici ? ', style: GoogleFonts.inter(color: const Color(0xFF666666), fontSize: 14)),
                             GestureDetector(
